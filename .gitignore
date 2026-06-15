@@ -1,0 +1,9 @@
+.env
+market_venv
+.market_venv
+market_venv/
+.market_venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

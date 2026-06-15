@@ -1,0 +1,14 @@
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langchain_anthropic
+langgraph
+langsmith
+python-dotenv
+requests
+pydantic
+fastapi
+uvicorn
+psycopg2-binary
+finnhub-python
