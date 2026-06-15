@@ -11,40 +11,48 @@ load_dotenv()
 
 
 def get_quote(ticker:str)->dict:
-
     #getting stock prize  details from  finnhub
-    finnhub_client = finnhub.Client(api_key=os.environ['FINNHUB_API_KEY'])
-    #print(finnhub_client.quote(ticker)) 
-    quote_data = finnhub_client.quote(ticker) 
 
-    return {
-        "current_price": quote_data['c'],
-        "change": quote_data['d'],
-        "percent_change": quote_data['dp'],
-        "high": quote_data['h'],
-        "low": quote_data['l'],
-        "open": quote_data['o'],
-        "previous_close": quote_data['pc']
-    }
+    try:
+        finnhub_client = finnhub.Client(api_key=os.environ['FINNHUB_API_KEY'])
+        #print(finnhub_client.quote(ticker)) 
+        quote_data = finnhub_client.quote(ticker) 
+
+        return {
+            "current_price": quote_data['c'],
+            "change": quote_data['d'],
+            "percent_change": quote_data['dp'],
+            "high": quote_data['h'],
+            "low": quote_data['l'],
+            "open": quote_data['o'],
+            "previous_close": quote_data['pc']
+        }
+    except Exception as e:
+        print(f"Finnhub API error for {ticker}: {e}")
+        return None
     
 
 
 def get_indicators(ticker:str)->dict:
     #getting stock rsi and macd from  yahoo finance 
-    stock = yf.Ticker(ticker) 
-    df = stock.history(period="3mo") 
-    df['RSI'] = ta.rsi(df['Close'], length=14)
-    df['MACD'] = ta.macd(df['Close'])['MACD_12_26_9']
-    df['EMA20'] = ta.ema(df['Close'], length=20)
-    df['EMA50'] = ta.ema(df['Close'], length=50) 
 
-    return {
-    "rsi": round(float(df['RSI'].iloc[-1]), 2),
-    "macd": round(float(df['MACD'].iloc[-1]), 2),
-    "ema20": round(float(df['EMA20'].iloc[-1]), 2),
-    "ema50": round(float(df['EMA50'].iloc[-1]), 2)
+    try:
+        stock = yf.Ticker(ticker) 
+        df = stock.history(period="3mo") 
+        df['RSI'] = ta.rsi(df['Close'], length=14)
+        df['MACD'] = ta.macd(df['Close'])['MACD_12_26_9']
+        df['EMA20'] = ta.ema(df['Close'], length=20)
+        df['EMA50'] = ta.ema(df['Close'], length=50) 
 
-}
+        return {
+        "rsi": round(float(df['RSI'].iloc[-1]), 2),
+        "macd": round(float(df['MACD'].iloc[-1]), 2),
+        "ema20": round(float(df['EMA20'].iloc[-1]), 2),
+        "ema50": round(float(df['EMA50'].iloc[-1]), 2)
+             }
+    except Exception as e:
+        print(f"yahoo finnace API error for {ticker}: {e}")
+        return None
 
 
 system_prompt  = """
@@ -115,8 +123,22 @@ def technical_agent(state: AgentState) -> AgentState:
     ticker = state["ticker"] 
 
     # Step 1 - fetch data
-    quote = get_quote(ticker)
+    quote = get_quote(ticker) 
+    if quote is None:
+        return {
+            **state,
+            "technical_score": None,
+            "technical_summary": "Technical data unavailable — Finnhub API error"
+        }
+
     indicators = get_indicators(ticker)
+    if indicators is None:
+        return {
+            **state,
+            "technical_score": None,
+            "technical_summary": "Technical data unavailable — yfinance  API error"
+        }
+
 
 
     prompt = ChatPromptTemplate.from_template(system_prompt)
