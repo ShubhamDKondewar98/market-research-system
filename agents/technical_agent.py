@@ -33,16 +33,31 @@ def get_quote(ticker:str)->dict:
     
 
 
-def get_indicators(ticker:str)->dict:
+def get_indicators(ticker:str , interval: str = "1d")->dict:
     #getting stock rsi and macd from  yahoo finance 
 
+
+
     try:
-        stock = yf.Ticker(ticker) 
-        df = stock.history(period="3mo") 
+        stock = yf.Ticker(ticker)  
+
+        # period depends on interval
+        period_map = {
+            "15m": "5d",
+            "1h": "1mo",
+            "4h": "1mo", 
+            "1d": "3mo"
+        }
+
+        period = period_map.get(interval, "3mo")
+        #df = stock.history(period="3mo") 
+        df = stock.history(period=period, interval=interval)
         df['RSI'] = ta.rsi(df['Close'], length=14)
         df['MACD'] = ta.macd(df['Close'])['MACD_12_26_9']
         df['EMA20'] = ta.ema(df['Close'], length=20)
         df['EMA50'] = ta.ema(df['Close'], length=50) 
+
+
 
         return {
         "rsi": round(float(df['RSI'].iloc[-1]), 2),
@@ -130,8 +145,9 @@ def technical_agent(state: AgentState) -> AgentState:
             "technical_score": None,
             "technical_summary": "Technical data unavailable — Finnhub API error"
         }
-
-    indicators = get_indicators(ticker)
+    
+    interval = state.get("interval", "1d")  # default to daily
+    indicators = get_indicators(ticker,interval)
     if indicators is None:
         return {
             **state,
