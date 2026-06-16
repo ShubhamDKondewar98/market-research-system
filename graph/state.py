@@ -18,7 +18,7 @@ class AgentState(TypedDict):
     reasoning:Optional[str]
     alert_type:Optional[str]                
     agents_run:Optional[list]
-
+    interval: str
 
 
 
