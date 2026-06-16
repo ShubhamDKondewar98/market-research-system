@@ -12,12 +12,10 @@ load_dotenv()
 
 def get_quote(ticker:str)->dict:
     #getting stock prize  details from  finnhub
-
     try:
         finnhub_client = finnhub.Client(api_key=os.environ['FINNHUB_API_KEY'])
         #print(finnhub_client.quote(ticker)) 
         quote_data = finnhub_client.quote(ticker) 
-
         return {
             "current_price": quote_data['c'],
             "change": quote_data['d'],
@@ -30,25 +28,16 @@ def get_quote(ticker:str)->dict:
     except Exception as e:
         print(f"Finnhub API error for {ticker}: {e}")
         return None
-    
-
 
 def get_indicators(ticker:str , interval: str = "1d")->dict:
-    #getting stock rsi and macd from  yahoo finance 
-
-
-
     try:
         stock = yf.Ticker(ticker)  
-
-        # period depends on interval
         period_map = {
             "15m": "5d",
             "1h": "1mo",
             "4h": "1mo", 
             "1d": "3mo"
         }
-
         period = period_map.get(interval, "3mo")
         #df = stock.history(period="3mo") 
         df = stock.history(period=period, interval=interval)
@@ -56,9 +45,6 @@ def get_indicators(ticker:str , interval: str = "1d")->dict:
         df['MACD'] = ta.macd(df['Close'])['MACD_12_26_9']
         df['EMA20'] = ta.ema(df['Close'], length=20)
         df['EMA50'] = ta.ema(df['Close'], length=50) 
-
-
-
         return {
         "rsi": round(float(df['RSI'].iloc[-1]), 2),
         "macd": round(float(df['MACD'].iloc[-1]), 2),
@@ -120,8 +106,6 @@ MACD: {macd}
 EMA20: {ema20}
 EMA50: {ema50}
 
-
-
 Return your response in this exact JSON format only. 
 No extra text, no markdown, no explanation outside the JSON:
 {{
@@ -130,6 +114,7 @@ No extra text, no markdown, no explanation outside the JSON:
 }} 
 
 """
+
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
