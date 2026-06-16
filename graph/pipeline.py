@@ -35,4 +35,6 @@ workflow.add_edge("validation_agent", END)
 # Compile
 graph = workflow.compile()
 
+print(graph.get_graph().draw_ascii())
+
 

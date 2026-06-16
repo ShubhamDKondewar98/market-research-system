@@ -7,6 +7,14 @@ if __name__ == "__main__":
         "ticker": "AAPL",
         "interval": "1d"
     })
+
+
+    # Visualize the graph
+    from IPython.display import Image
+    graph_image = graph.get_graph().draw_mermaid_png()
+    with open("graph_visualization.png", "wb") as f:
+        f.write(graph_image)
+    print("Graph saved as graph_visualization.png")
     
     print("\n=== MARKET ANALYSIS RESULT ===")
     print(f"Ticker:     {result['ticker']}")
