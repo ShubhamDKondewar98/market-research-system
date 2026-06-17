@@ -162,3 +162,10 @@ TELEGRAM_CHAT_ID=
 
 This system is for research and educational purposes only.
 Not financial advice. Always do your own research before making investment decisions.
+
+
+
+Note: RLS is disabled since this is a single-user system accessed via 
+direct database connection rather than Supabase's public REST API.
+In a multi-tenant production system, RLS would be enabled to ensure 
+each user only accesses their own watchlist data.
