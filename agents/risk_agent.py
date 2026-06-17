@@ -93,12 +93,24 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 def risk_agent(state: AgentState) -> AgentState:
     ticker = state["ticker"]
+
+    # NEW: check if this agent should run fresh or use cache
+    run_agents = state.get("run_agents")  
+
+      # If run_agents is None or "technical" is not in the list, use cache
+    if run_agents is not None and "risk" not in run_agents:
+        return {
+            **state,
+            "risk_score": state.get("cached_risk_score"),
+            "risk_summary": state.get("cached_risk_summary")
+        }
+
     Risk = get_risk_data(ticker) 
     if Risk is None:
         return {
             **state,
             "risk_score": None,
-            "risk_summary": "Technical data unavailable — yfinance API error"
+            "risk_summary": "risk data unavailable — yfinance API error"
         }
     
     prompt = ChatPromptTemplate.from_template(system_prompt)
@@ -119,12 +131,26 @@ def risk_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
 
     return {
-        
+        **state,
         "risk_score": result["risk_score"],
         "risk_summary": result["risk_summary"]
     }
     
 
+# if __name__ == "__main__":
+#     result = risk_agent({"ticker": "AAPL"})
+#     print(result)
+
 if __name__ == "__main__":
-    result = risk_agent({"ticker": "AAPL"})
-    print(result)
+    # Test 1: fresh run (no run_agents)
+    result1 = risk_agent({"ticker": "AAPL"})
+    print("FRESH RUN:", result1)
+
+    # Test 2: cache-skip path (sentiment NOT in run_agents)
+    result2 = risk_agent({
+        "ticker": "AAPL",
+        "run_agents": ["technical", "sentiment"],  # sentiment NOT included
+        "cached_risk_score": 70,
+        "cached_risk_summary": "Cached: moderately bullish from earlier run"
+    })
+    print("CACHED RUN:", result2)
