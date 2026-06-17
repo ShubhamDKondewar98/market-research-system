@@ -17,8 +17,17 @@ class AgentState(TypedDict):
     changed_agents:Optional[list]
     reasoning:Optional[str]
     alert_type:Optional[str]                
-    agents_run:Optional[list]
+    run_agents:Optional[list]
     interval: str
+
+    cached_technical_score: Optional[float]
+    cached_technical_summary: Optional[str]
+    cached_news_score: Optional[float]      
+    cached_news_summary:Optional[str]  
+    cached_sentiment_score:Optional[float]  
+    cached_sentiment_summary:Optional[str]    
+    cached_risk_score:Optional[float]       
+    cached_risk_summary:Optional[str]  
 
 
 
