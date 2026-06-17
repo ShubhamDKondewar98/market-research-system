@@ -118,19 +118,31 @@ No extra text, no markdown, no explanation outside the JSON:
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
-
 def technical_agent(state: AgentState) -> AgentState:
-    ticker = state["ticker"] 
+    ticker = state["ticker"]  
+
+
+    # NEW: check if this agent should run fresh or use cache
+    run_agents = state.get("run_agents") 
+
+
+     # If run_agents is None or "technical" is not in the list, use cache
+    if run_agents is not None and "technical" not in run_agents:
+        return {
+            **state,
+            "technical_score": state.get("cached_technical_score"),
+            "technical_summary": state.get("cached_technical_summary")
+        }
+    
 
     # Step 1 - fetch data
     quote = get_quote(ticker) 
     if quote is None:
-        return {
+        return {   
             **state,
             "technical_score": None,
-            "technical_summary": "Technical data unavailable — Finnhub API error"
-        }
-    
+            "technical_summary": "Technical data unavailable — Finnhub API error" 
+        }  
     interval = state.get("interval", "1d")  # default to daily
     indicators = get_indicators(ticker,interval)
     if indicators is None:
@@ -140,13 +152,9 @@ def technical_agent(state: AgentState) -> AgentState:
             "technical_summary": "Technical data unavailable — yfinance  API error"
         }
 
-
-
     prompt = ChatPromptTemplate.from_template(system_prompt)
-
     chain = prompt | llm
-
-    response = chain.invoke({
+    response = chain.invoke({ 
         "ticker": ticker,
         "current_price":quote["current_price"],
         "change": quote["change"],
@@ -158,10 +166,10 @@ def technical_agent(state: AgentState) -> AgentState:
         "macd": indicators["macd"],
         "ema20": indicators["ema20"],
         "ema50": indicators["ema50"]
-    })
+    }) 
 
     raw = response.content.strip() 
-    
+
     if raw.startswith("```"):
         raw = raw.split("```")[1]  # get content between backticks
         if raw.startswith("json"):
@@ -170,14 +178,27 @@ def technical_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
     
     return {
-        
+        **state,
         "technical_score": result["technical_score"],
         "technical_summary": result["technical_summary"]
     }
 
 
-if __name__ == "__main__":
-    result = technical_agent({"ticker": "AAPL"}) 
-    print(result)
+# if __name__ == "__main__":
+#     result = technical_agent({"ticker": "AAPL"}) 
+#     print(result)
 
+if __name__ == "__main__":
+    # Test 1: fresh run (no run_agents)
+    result1 = technical_agent({"ticker": "AAPL"})
+    print("FRESH RUN:", result1)
+
+    # Test 2: cache-skip path (technical NOT in run_agents)
+    result2 = technical_agent({
+        "ticker": "AAPL",
+        "run_agents": ["sentiment", "risk"],  # technical NOT included
+        "cached_technical_score": 65,
+        "cached_technical_summary": "Cached: bullish trend from earlier run"
+    })
+    print("CACHED RUN:", result2)
 
