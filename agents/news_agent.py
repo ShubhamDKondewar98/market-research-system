@@ -108,13 +108,24 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 def news_agent(state: AgentState) -> AgentState:
     ticker = state["ticker"] 
+
+ # NEW: check if this agent should run fresh or use cache
+    run_agents = state.get("run_agents") 
+
+    # If run_agents is None or "technical" is not in the list, use cache
+    if run_agents is not None and "news" not in run_agents:
+        return {
+            **state,
+            "news_score": state.get("cached_news_score"),
+            "news_summary": state.get("cached_news_summary")
+        }
     
     c_news = company_news(ticker) 
     if c_news is None:
         return {
             **state,
             "news_score": None,
-            "news_summary": "Technical data unavailable — Finnhub API error"
+            "news_summary": "news data unavailable — Finnhub API error"
         }
 
     g_news = general_news() 
@@ -122,7 +133,7 @@ def news_agent(state: AgentState) -> AgentState:
         return {
             **state,
             "news_score": None,
-            "news_summary": "Technical data unavailable — Finnhub API error"
+            "news_summary": "news data unavailable — Finnhub API error"
         } 
     
     
@@ -146,16 +157,31 @@ def news_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
 
     return {
-        
+        **state,
         "news_score": result["news_score"],
         "news_summary": result["news_summary"]
     }
 
 
+# if __name__ == "__main__":
+#     # company = company_news("AAPL")
+#     # general = general_news()
+#     # print("Company News:", company)
+#     # print("General News:", general)
+#     result = news_agent({"ticker": "AAPL"}) 
+#     print(result)
+
+
 if __name__ == "__main__":
-    # company = company_news("AAPL")
-    # general = general_news()
-    # print("Company News:", company)
-    # print("General News:", general)
-    result = news_agent({"ticker": "AAPL"}) 
-    print(result)
+    # Test 1: fresh run (no run_agents)
+    result1 = news_agent({"ticker": "AAPL"})
+    print("FRESH RUN:", result1)
+
+    # Test 2: cache-skip path (news NOT in run_agents)
+    result2 = news_agent({
+        "ticker": "AAPL",
+        "run_agents": ["technical", "risk"],  # news NOT included
+        "cached_news_score": 50,
+        "cached_news_summary": "Cached: neutral news flow from earlier run"
+    })
+    print("CACHED RUN:", result2)
