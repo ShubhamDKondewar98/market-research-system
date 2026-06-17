@@ -1,7 +1,7 @@
 from typing import TypedDict, Optional, List 
 
 class AgentState(TypedDict):
-    ticker: str      #### initail ticker 
+    ticker: str      #### initail ticker  
     technical_score:Optional[float]   ##   technical agent score
     technical_summary:Optional[str]   ##   technical agent summary
     news_score:Optional[float]        ##   news agent score

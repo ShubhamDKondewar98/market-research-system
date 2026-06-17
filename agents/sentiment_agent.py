@@ -134,12 +134,23 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0)
 def sentiment_agent(state: AgentState) -> AgentState:
     ticker = state["ticker"]
 
+    # NEW: check if this agent should run fresh or use cache
+    run_agents = state.get("run_agents") 
+
+    # If run_agents is None or "technical" is not in the list, use cache
+    if run_agents is not None and "sentiment" not in run_agents:
+        return {
+            **state,
+            "sentiment_score": state.get("cached_sentiment_score"),
+            "sentiment_summary": state.get("cached_sentiment_summary")
+        }
+
     C_sentiments = sentimentOfCompany(ticker) 
     if C_sentiments is None:
         return {
             **state,
             "sentiment_score": None,
-            "sentiment_summary": "Technical data unavailable — Finnhub API error"
+            "sentiment_summary": "sentiment data unavailable — Finnhub API error"
         }
     
     analyst_data = get_analyst_data(ticker) 
@@ -147,7 +158,7 @@ def sentiment_agent(state: AgentState) -> AgentState:
         return {
             **state,
             "sentiment_score": None,
-            "sentiment_summary": "Technical data unavailable — Finnhub API error"
+            "sentiment_summary": "sentiment data unavailable — Finnhub API error"
         }
     
     prompt = ChatPromptTemplate.from_template(system_prompt)
@@ -170,14 +181,27 @@ def sentiment_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
 
     return {
-        
+        **state,
         "sentiment_score": result["sentiment_score"],
         "sentiment_summary": result["sentiment_summary"]
     }
 
 
-if __name__ == "__main__":
-    result = sentiment_agent({"ticker": "AAPL"})
-    print(result)
+# if __name__ == "__main__":
+#     result = sentiment_agent({"ticker": "AAPL"})
+#     print(result)
 
+if __name__ == "__main__":
+    # Test 1: fresh run (no run_agents)
+    result1 = sentiment_agent({"ticker": "AAPL"})
+    print("FRESH RUN:", result1)
+
+    # Test 2: cache-skip path (sentiment NOT in run_agents)
+    result2 = sentiment_agent({
+        "ticker": "AAPL",
+        "run_agents": ["technical", "risk"],  # sentiment NOT included
+        "cached_sentiment_score": 70,
+        "cached_sentiment_summary": "Cached: moderately bullish from earlier run"
+    })
+    print("CACHED RUN:", result2)
 
