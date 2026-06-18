@@ -69,13 +69,13 @@ Confidence bands:
 |---|---|
 | Agentic AI | LangGraph |
 | LLM Ecosystem | LangChain |
-| LLM | OpenAI GPT-4o |
+| LLM | OpenAI GPT-4o |  Anthropic claude-sonnet-4-6
 | Orchestration | n8n |
 | Database | PostgreSQL |
 | Notifications | Telegram |
 | Observability | LangSmith |
-| Market Data | Finnhub |
-| News Data | NewsAPI / Finnhub News |
+| Market Data | Finnhub | Yahoofinance
+| News Data | Yahoofinance | Finnhub News |
 
 ---
 
@@ -148,13 +148,13 @@ TELEGRAM_CHAT_ID=
 
 | Phase | What Gets Built | Status |
 |---|---|---|
-| Phase 1 | Technical Agent + real Finnhub data | 🔄 In Progress |
-| Phase 2 | All 4 agents running in parallel | ⏳ Pending |
-| Phase 3 | Signal Validation Agent + complete pipeline | ⏳ Pending |
-| Phase 4 | Watchlist Memory Layer + delta analysis | ⏳ Pending |
-| Phase 5 | Tier system + PostgreSQL | ⏳ Pending |
-| Phase 6 | n8n integration + Telegram alerts | ⏳ Pending |
-| Phase 7 | Error handling + production hardening | ⏳ Pending |
+| Phase 1 | Technical Agent + real Finnhub data | 
+| Phase 2 | All 4 agents running in parallel | 
+| Phase 3 | Signal Validation Agent + complete pipeline 
+| Phase 4 | Watchlist Memory Layer + delta analysis 
+| Phase 5 | Tier system + PostgreSQL | 
+| Phase 6 | n8n integration + Telegram alerts | 
+| Phase 7 | Error handling + production hardening | 
 
 ---
 
