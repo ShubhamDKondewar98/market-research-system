@@ -12,7 +12,6 @@ load_dotenv()
 import json
 
 
-
 system_prompt  = """
 You are an expert validation analyst specializing in stock market analysis.
 
