@@ -100,7 +100,7 @@ def risk_agent(state: AgentState) -> AgentState:
       # If run_agents is None or "technical" is not in the list, use cache
     if run_agents is not None and "risk" not in run_agents:
         return {
-            **state,
+            #**state,
             "risk_score": state.get("cached_risk_score"),
             "risk_summary": state.get("cached_risk_summary")
         }
@@ -108,7 +108,7 @@ def risk_agent(state: AgentState) -> AgentState:
     Risk = get_risk_data(ticker) 
     if Risk is None:
         return {
-            **state,
+           # **state,
             "risk_score": None,
             "risk_summary": "risk data unavailable — yfinance API error"
         }
@@ -131,7 +131,7 @@ def risk_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
 
     return {
-        **state,
+        #**state,
         "risk_score": result["risk_score"],
         "risk_summary": result["risk_summary"]
     }

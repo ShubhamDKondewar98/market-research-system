@@ -115,7 +115,7 @@ def news_agent(state: AgentState) -> AgentState:
     # If run_agents is None or "technical" is not in the list, use cache
     if run_agents is not None and "news" not in run_agents:
         return {
-            **state,
+            #**state,
             "news_score": state.get("cached_news_score"),
             "news_summary": state.get("cached_news_summary")
         }
@@ -123,7 +123,7 @@ def news_agent(state: AgentState) -> AgentState:
     c_news = company_news(ticker) 
     if c_news is None:
         return {
-            **state,
+            #**state,
             "news_score": None,
             "news_summary": "news data unavailable — Finnhub API error"
         }
@@ -131,7 +131,7 @@ def news_agent(state: AgentState) -> AgentState:
     g_news = general_news() 
     if g_news is None:
         return {
-            **state,
+           # **state,
             "news_score": None,
             "news_summary": "news data unavailable — Finnhub API error"
         } 
@@ -157,7 +157,7 @@ def news_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
 
     return {
-        **state,
+         #**state,
         "news_score": result["news_score"],
         "news_summary": result["news_summary"]
     }

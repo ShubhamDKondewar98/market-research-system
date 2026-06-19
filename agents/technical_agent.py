@@ -129,7 +129,7 @@ def technical_agent(state: AgentState) -> AgentState:
      # If run_agents is None or "technical" is not in the list, use cache
     if run_agents is not None and "technical" not in run_agents:
         return {
-            **state,
+           # **state,
             "technical_score": state.get("cached_technical_score"),
             "technical_summary": state.get("cached_technical_summary")
         }
@@ -139,7 +139,7 @@ def technical_agent(state: AgentState) -> AgentState:
     quote = get_quote(ticker) 
     if quote is None:
         return {   
-            **state,
+           # **state,
             "technical_score": None,
             "technical_summary": "Technical data unavailable — Finnhub API error" 
         }  
@@ -147,7 +147,7 @@ def technical_agent(state: AgentState) -> AgentState:
     indicators = get_indicators(ticker,interval)
     if indicators is None:
         return {
-            **state,
+           # **state,
             "technical_score": None,
             "technical_summary": "Technical data unavailable — yfinance  API error"
         }
@@ -178,7 +178,7 @@ def technical_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
     
     return {
-        **state,
+        #**state,
         "technical_score": result["technical_score"],
         "technical_summary": result["technical_summary"]
     }
