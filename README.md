@@ -71,7 +71,7 @@ Confidence bands:
 | LLM Ecosystem | LangChain |
 | LLM | OpenAI GPT-4o |  Anthropic claude-sonnet-4-6
 | Orchestration | n8n |
-| Database | PostgreSQL |
+| Database | PostgreSQL |  Supabase |
 | Notifications | Telegram |
 | Observability | LangSmith |
 | Market Data | Finnhub | Yahoofinance
@@ -163,9 +163,11 @@ TELEGRAM_CHAT_ID=
 This system is for research and educational purposes only.
 Not financial advice. Always do your own research before making investment decisions.
 
+---
 
+### Note
 
-Note: RLS is disabled since this is a single-user system accessed via 
+RLS is disabled since this is a single-user system accessed via 
 direct database connection rather than Supabase's public REST API.
 In a multi-tenant production system, RLS would be enabled to ensure 
 each user only accesses their own watchlist data.
