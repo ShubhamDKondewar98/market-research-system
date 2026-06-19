@@ -148,7 +148,7 @@ def sentiment_agent(state: AgentState) -> AgentState:
     C_sentiments = sentimentOfCompany(ticker) 
     if C_sentiments is None:
         return {
-            **state,
+           # **state,
             "sentiment_score": None,
             "sentiment_summary": "sentiment data unavailable — Finnhub API error"
         }
@@ -156,7 +156,7 @@ def sentiment_agent(state: AgentState) -> AgentState:
     analyst_data = get_analyst_data(ticker) 
     if analyst_data is None:
         return {
-            **state,
+           # **state,
             "sentiment_score": None,
             "sentiment_summary": "sentiment data unavailable — Finnhub API error"
         }
@@ -181,7 +181,7 @@ def sentiment_agent(state: AgentState) -> AgentState:
     result = json.loads(raw.strip())
 
     return {
-        **state,
+        #**state,
         "sentiment_score": result["sentiment_score"],
         "sentiment_summary": result["sentiment_summary"]
     }
