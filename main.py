@@ -186,7 +186,7 @@ def run_pipeline(ticker: str, interval: str = "1d"):
 
 if __name__ == "__main__":
     #run_pipeline("AAPL", "1d")
-    tickers = ["AAPL", "NVDA", "TSLA", "MSFT"]
+    tickers = ["AAPL", "NVDA", "TSLA", "MSFT" , "JPM"]
     for ticker in tickers:
         print(f"\n{'='*50}")
         run_pipeline(ticker, "1d")
