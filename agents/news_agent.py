@@ -11,6 +11,7 @@ import json
 import datetime
 load_dotenv()
 import json
+from database.queries import get_cached_general_news, save_general_news_cache
 
 
 
@@ -128,13 +129,28 @@ def news_agent(state: AgentState) -> AgentState:
             "news_summary": "news data unavailable — Finnhub API error"
         }
 
-    g_news = general_news() 
+    # g_news = general_news() 
+    # if g_news is None:
+    #     return {
+    #        # **state,
+    #         "news_score": None,
+    #         "news_summary": "news data unavailable — Finnhub API error"
+    #     } 
+
+    g_news = get_cached_general_news()
     if g_news is None:
-        return {
-           # **state,
+        print("General news cache MISS — fetching fresh")  # add this
+        g_news = general_news()
+        if g_news is None:
+            return {
             "news_score": None,
             "news_summary": "news data unavailable — Finnhub API error"
-        } 
+        }
+        save_general_news_cache(g_news)
+        print("General news cached successfully")  # add this
+
+    else:
+        print("General news cache HIT — using cached data")  # add this
     
     
     prompt = ChatPromptTemplate.from_template(system_prompt)
