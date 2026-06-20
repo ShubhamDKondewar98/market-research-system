@@ -35,10 +35,12 @@ from graph.pipeline import graph
 from database.queries import (
     last_known_scores, save_agent_scores, 
     get_previous_confidence, save_confidence,
-    save_alert, save_execution_log
+    save_alert, save_execution_log,
+    update_tier, get_confidence_history
 )
 from datetime import datetime, timedelta
 import time
+
 
 # Freshness rules in minutes
 FRESHNESS_RULES = {
@@ -47,6 +49,27 @@ FRESHNESS_RULES = {
     "sentiment": 30,   # 30 minutes
     "risk": 120        # 2 hours
 }
+
+
+def evaluate_tier(ticker: str, current_tier: str) -> str:
+    history = get_confidence_history(ticker, limit=3)
+    
+    if len(history) < 2:
+        return current_tier  # not enough data to make a decision
+    
+    avg = sum(history) / len(history)
+    trend = history[0] - history[-1]  # positive = rising, negative = falling
+    
+    # Promotion rules
+    if avg > 75 and trend >= 0:
+        return "HOT"
+    
+    # Demotion rules  
+    if avg < 55 or trend < -15:
+        return "RADAR"
+    
+    return "WATCH"
+
 
 def run_pipeline(ticker: str, interval: str = "1d"):
     start_time = datetime.now()
@@ -139,6 +162,12 @@ def run_pipeline(ticker: str, interval: str = "1d"):
         run_time=end_time - start_time,
         error_msg=None
     )
+
+
+    # Evaluate and update tier
+    new_tier = evaluate_tier(ticker, "WATCH")
+    update_tier(ticker, new_tier)
+    print(f"Tier: {new_tier}")
     
     # Print results
     print("\n=== MARKET ANALYSIS RESULT ===")
