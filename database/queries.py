@@ -166,4 +166,39 @@ def get_watchlist_by_tier(tier: str) -> list:
     
     
 
-    
+def update_tier(ticker: str, tier: str) -> None:
+    conn = get_connection()  
+    cursor = conn.cursor()
+    try:
+        cursor.execute( 
+         "UPDATE watchlist SET tier = %s , last_scan = NOW() WHERE ticker = %s" ,
+         (tier,ticker)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating  tier {tier}: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_confidence_history(ticker: str, limit: int = 3) -> list:
+    conn = get_connection()  
+    cursor = conn.cursor()
+    rows = []
+    try:
+        cursor.execute( 
+         "SELECT confidence_score FROM confidence_history " 
+         "WHERE ticker = %s ORDER BY recorded_at DESC LIMIT %s" ,
+         (ticker,limit)
+        )
+        rows = cursor.fetchall()  
+    except Exception as e:
+        print(f"Error in getting confidence history {ticker}: {e}")
+    finally:
+        cursor.close()
+        conn.close() 
+
+    if not rows:
+        return []
+    return [row[0] for row in rows]
