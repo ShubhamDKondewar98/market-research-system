@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 from datetime import datetime, timedelta
 import json 
+from datetime import datetime, timedelta, timezone
+
 
 # Create connection pool once at module level
 connection_pool = psycopg2.pool.SimpleConnectionPool(
@@ -238,7 +240,7 @@ def get_cached_general_news() -> list | None:
     if row is None:
         return None  
     fetched_at = row[1]
-    age = datetime.now() - fetched_at
+    age = datetime.now(timezone.utc) - fetched_at.replace(tzinfo=timezone.utc)
     if age < timedelta(hours=1):
         return json.loads(row[0])  
     else:
