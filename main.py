@@ -185,4 +185,8 @@ def run_pipeline(ticker: str, interval: str = "1d"):
     print(f"\nReasoning: {result['reasoning']}")
 
 if __name__ == "__main__":
-    run_pipeline("AAPL", "1d")
+    #run_pipeline("AAPL", "1d")
+    tickers = ["AAPL", "NVDA", "TSLA", "MSFT"]
+    for ticker in tickers:
+        print(f"\n{'='*50}")
+        run_pipeline(ticker, "1d")
