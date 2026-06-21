@@ -57,8 +57,14 @@ ABSOLUTE_LOW     → confidence dropped below 30%
 
 reasoning behind the given points on  the basic of provided data 
 
-Provide a concise reasoning explanation for this assessment.
-Return ONLY plain text. No JSON, no markdown. 2-3 sentences maximum. 
+
+
+Provide a concise 2-3 sentence reasoning explanation focusing only on:
+- Which agents have strong or weak signals
+- Whether conflicts exist and why
+- What the overall assessment means for the investor
+Return ONLY plain text. No labels, no JSON, no markdown.
+Do NOT include Ticker, Confidence, Decision, Alert Type, or Changed Agents in your response.
 
 """
 
@@ -132,12 +138,36 @@ def validation_agent(state: AgentState) -> AgentState:
         
     reasoning  = response.content.strip()
 
+    changed_agents = []
+    threshold = 5.0  # score change > 5 points = meaningful change
+
+    prev_scores = {
+        "technical": state.get("previous_technical_score"),
+        "news": state.get("previous_news_score"),
+        "sentiment": state.get("previous_sentiment_score"),
+        "risk": state.get("previous_risk_score")
+    }
+
+    current_scores = {
+        "technical": technical_score,
+        "news": news_score,
+        "sentiment": sentiment_score,
+        "risk": risk_score
+    }
+
+    for agent in ["technical", "news", "sentiment", "risk"]:
+        prev = prev_scores[agent]
+        curr = current_scores[agent]
+        if prev is not None and abs(curr - prev) > threshold:
+            changed_agents.append(agent)
+
     return {
     **state,
     "confidence": round(confidence, 2),
     "decision": decision,
     "alert_type": alert_type,
-    "changed_agents": [],
+    "changed_agents": changed_agents, 
+    
     "reasoning": reasoning
             }
 

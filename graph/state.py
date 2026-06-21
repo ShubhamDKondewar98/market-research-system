@@ -29,6 +29,10 @@ class AgentState(TypedDict):
     cached_risk_score:Optional[float]       
     cached_risk_summary:Optional[str]  
 
+    previous_technical_score: Optional[float]
+    previous_news_score: Optional[float]
+    previous_sentiment_score: Optional[float]
+    previous_risk_score: Optional[float]
 
 
 
