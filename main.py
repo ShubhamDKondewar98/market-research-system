@@ -106,10 +106,18 @@ def run_pipeline(ticker: str, interval: str = "1d"):
             if agent not in run_agents:
                 payload[f"cached_{agent}_score"] = last_scores[f"{agent}_score"]
                 payload[f"cached_{agent}_summary"] = None  # summaries not stored in DB yet
+
+                # Add previous scores for changed_agents calculation
+        #if last_scores is not None:
+        payload["previous_technical_score"] = last_scores.get("technical_score")
+        payload["previous_news_score"] = last_scores.get("news_score")
+        payload["previous_sentiment_score"] = last_scores.get("sentiment_score")
+        payload["previous_risk_score"] = last_scores.get("risk_score")
     
     # Step 4 — call LangGraph pipeline
     print(f"\nRunning pipeline for {ticker}")
     print(f"Fresh agents: {run_agents}")
+    
     result = graph.invoke(payload)
     
     # Step 5 — calculate delta
@@ -183,9 +191,11 @@ def run_pipeline(ticker: str, interval: str = "1d"):
     print(f"  Sentiment:  {result['sentiment_score']}")
     print(f"  Risk:       {result['risk_score']}")
     print(f"\nReasoning: {result['reasoning']}")
+    print(f"Changed Agents: {result['changed_agents']}")
 
 if __name__ == "__main__":
     #run_pipeline("AAPL", "1d")
+
     tickers = ["AAPL", "NVDA", "TSLA", "MSFT" , "JPM"]
     for ticker in tickers:
         print(f"\n{'='*50}")
