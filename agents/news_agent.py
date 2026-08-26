@@ -12,9 +12,13 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 from database.queries import get_cached_general_news, save_general_news_cache
-from utils import validate_agent_score
+from pydantic import BaseModel,Field,ValidationError
 
 
+
+class NewsScoreOutput(BaseModel):
+    news_score: float = Field(ge=0, le=100)
+    news_summary: str
 
 def company_news(ticker:str) -> list:
     try:
@@ -105,6 +109,7 @@ No extra text, no markdown, no explanation outside the JSON:
 """ 
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
+structured_llm = llm.with_structured_output(NewsScoreOutput)
 
 
 
@@ -145,7 +150,7 @@ def news_agent(state: AgentState) -> AgentState:
     
     
     prompt = ChatPromptTemplate.from_template(system_prompt)
-    chain = prompt | llm 
+    chain = prompt | structured_llm 
 
     MAX_RETRIES = 2
 
@@ -154,27 +159,20 @@ def news_agent(state: AgentState) -> AgentState:
         try:
             response = chain.invoke({
                 "ticker": ticker,
-                "company_news":json.dumps(c_news,indent=2),
-                "general_news":json.dumps(g_news, indent=2)
+                "company_news":json.dumps(c_news),
+                "general_news":json.dumps(g_news)
             }) 
-            raw = response.content.strip() 
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]  # get content between backticks
-                if raw.startswith("json"):
-                    raw = raw[4:]  
-            result = json.loads(raw.strip()) 
+            
             return {
-                "news_score": validate_agent_score(
-        result["news_score"], "news_score", state.get("cached_news_score"), ticker),
-                "news_summary": result["news_summary"]
+                "news_score": response.news_score,
+                "news_summary": response.news_summary
             }
 
-        except json.JSONDecodeError as e:
-            logger.warning(f"Malformed JSON from LLM for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-        except KeyError as e:
-            logger.warning(f"Missing expected field for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+        except ValidationError as e:
+            logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
         except Exception as e:
-            logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+            logger.warning(f"LLM call failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+
     logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached news score")
     return {
         "news_score": state.get("cached_news_score"),

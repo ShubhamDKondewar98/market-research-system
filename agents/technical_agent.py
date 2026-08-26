@@ -11,7 +11,12 @@ load_dotenv()
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-from utils import validate_agent_score
+from pydantic import BaseModel, Field, ValidationError
+
+
+class TechnicalScoreOutput(BaseModel):
+    technical_score: float = Field(ge=0, le=100)
+    technical_summary: str
 
 
 def get_quote(ticker:str)->dict:
@@ -121,6 +126,7 @@ No extra text, no markdown, no explanation outside the JSON:
 
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
+structured_llm = llm.with_structured_output(TechnicalScoreOutput)
 
 def technical_agent(state: AgentState) -> AgentState:
     ticker = state["ticker"]  
@@ -151,7 +157,7 @@ def technical_agent(state: AgentState) -> AgentState:
         }
 
     prompt = ChatPromptTemplate.from_template(system_prompt)
-    chain = prompt | llm 
+    chain = prompt | structured_llm 
 
     MAX_RETRIES = 2
     
@@ -171,27 +177,17 @@ def technical_agent(state: AgentState) -> AgentState:
                 "ema20": indicators["ema20"],
                 "ema50": indicators["ema50"]
             }) 
-
-            raw = response.content.strip() 
-
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]  # get content between backticks
-                if raw.startswith("json"):
-                    raw = raw[4:]  # remove the word "json"
-
-            result = json.loads(raw.strip())
             
             return {
-                "technical_score": validate_agent_score(result["technical_score"], "technical_score", state.get("cached_technical_score"), ticker),
-                "technical_summary": result["technical_summary"]
+                "technical_score": response.technical_score,
+                "technical_summary": response.technical_summary
             }
 
-        except json.JSONDecodeError as e:
-                    logger.warning(f"Malformed JSON from LLM for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-        except KeyError as e:
-                    logger.warning(f"Missing expected field for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+        except ValidationError as e:
+            logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+
         except Exception as e:
-                    logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+            logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
     logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached technical score")
 
     return {

@@ -12,7 +12,13 @@ load_dotenv()
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-from utils import validate_agent_score
+from pydantic import BaseModel, Field, ValidationError
+
+
+
+class RiskScoreOutput(BaseModel):
+    risk_score: float = Field(ge=0, le=100)
+    risk_summary: str
 
 
 
@@ -92,6 +98,7 @@ No extra text, no markdown, no explanation outside the JSON:
 
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
+structured_llm = llm.with_structured_output(RiskScoreOutput)
 
 
 def risk_agent(state: AgentState) -> AgentState:
@@ -115,7 +122,7 @@ def risk_agent(state: AgentState) -> AgentState:
         }
     
     prompt = ChatPromptTemplate.from_template(system_prompt)
-    chain = prompt | llm 
+    chain = prompt | structured_llm 
 
     MAX_RETRIES = 2
     for attempt in range(MAX_RETRIES):
@@ -124,23 +131,14 @@ def risk_agent(state: AgentState) -> AgentState:
                 "ticker": ticker,
                 "risk_data":json.dumps(Risk),
             })
-            raw = response.content.strip()
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]  # get content between backticks
-                if raw.startswith("json"):
-                    raw = raw[4:]  # remove the word "json"
-
-            result = json.loads(raw.strip())
-
+            
             return {
-                "risk_score": validate_agent_score(
-                    result["risk_score"], "risk_score", state.get("cached_risk_score"), ticker),
-                "risk_summary": result["risk_summary"]
+                "risk_score": response.risk_score,
+                "risk_summary": response.risk_summary
             }
-        except json.JSONDecodeError as e:
-            logger.warning(f"Malformed JSON from LLM for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-        except KeyError as e:
-            logger.warning(f"Missing expected field for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+
+        except ValidationError as e:
+            logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
         except Exception as e:
             logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
     logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached risk score")

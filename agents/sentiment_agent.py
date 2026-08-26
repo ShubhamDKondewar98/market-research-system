@@ -12,7 +12,12 @@ load_dotenv()
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-from utils import validate_agent_score
+from pydantic import BaseModel,Field,ValidationError
+
+
+class SentimentScoreOutput(BaseModel):
+    sentiment_score: float = Field(ge=0, le=100)
+    sentiment_summary: str
 
 def sentimentOfCompany(ticker:str)->list:
     try:
@@ -131,6 +136,7 @@ No extra text, no markdown, no explanation outside the JSON:
 
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
+structured_llm = llm.with_structured_output(SentimentScoreOutput)
 
 
 def sentiment_agent(state: AgentState) -> AgentState:
@@ -161,30 +167,24 @@ def sentiment_agent(state: AgentState) -> AgentState:
         }
     
     prompt = ChatPromptTemplate.from_template(system_prompt)
-    chain = prompt | llm 
+    chain = prompt | structured_llm 
 
     MAX_RETRIES = 2    
     for attempt in range(MAX_RETRIES):
         try:
             response = chain.invoke({
                 "ticker": ticker,
-                "insider_sentiment":json.dumps(C_sentiments,indent=2),
-                "analyst_data":json.dumps(analyst_data, indent=2)
+                "insider_sentiment":json.dumps(C_sentiments),
+                "analyst_data":json.dumps(analyst_data)
             })
-            raw = response.content.strip()
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]  # get content between backticks
-                if raw.startswith("json"):
-                    raw = raw[4:]  # remove the word "json"
-            result = json.loads(raw.strip())
+
             return {
-                "sentiment_score": validate_agent_score(result["sentiment_score"], "sentiment_score", state.get("cached_sentiment_score"), ticker),
-                "sentiment_summary": result["sentiment_summary"]
+                "sentiment_score": response.sentiment_score,
+                "sentiment_summary": response.sentiment_summary
             }
-        except json.JSONDecodeError as e:
-            logger.warning(f"Malformed JSON from LLM for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-        except KeyError as e:
-            logger.warning(f"Missing expected field for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+
+        except ValidationError as e:
+            logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
         except Exception as e:
             logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
     logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached sentiment score")
