@@ -1,15 +1,14 @@
-import finnhub
+
 import os
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-import yfinance as yf
-import pandas_ta as ta
 from graph.state import AgentState
 import json
-import datetime
 load_dotenv()
-import json
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 system_prompt  = """
@@ -81,12 +80,19 @@ def validation_agent(state: AgentState) -> AgentState:
     risk_score       = state["risk_score"]
 
     # Confidence score
-    confidence = (
-        technical_score * 0.30 +
-        news_score      * 0.25 +
-        sentiment_score * 0.25 +
-        risk_score      * 0.20
-    ) 
+
+    try:
+        confidence = (
+            technical_score * 0.30 +
+            news_score      * 0.25 +
+            sentiment_score * 0.25 +
+            risk_score      * 0.20
+        ) 
+    except TypeError as e:
+        logger.error(f"Confidence calculation failed for {ticker} — one or more scores is None: "
+                 f"technical={technical_score}, news={news_score}, "
+                 f"sentiment={sentiment_score}, risk={risk_score}")
+        raise
 
     conflicts = []
 
@@ -97,13 +103,23 @@ def validation_agent(state: AgentState) -> AgentState:
         "risk": risk_score
     }
 
-    # Compare every pair of agents
-    for agent1,score1 in scores.items():
-        for agent2, score2 in scores.items():
-            if agent1 != agent2:
-                if abs(score1 - score2) > 30:
-                    conflicts.append(f"{agent1} vs {agent2}")
+    items = list(scores.items())
 
+    # Compare every pair of agents
+    # for agent1,score1 in scores.items():
+    #     for agent2, score2 in scores.items():
+    #         if agent1 != agent2:
+    #             if abs(score1 - score2) > 30:
+    #                 conflicts.append(f"{agent1} vs {agent2}")
+
+
+    for i in range  (len(items)):
+        for j in range(i+1, len(items)):
+            agent1, score1 = items[i]
+            agent2, score2 = items[j] 
+            if abs(score1 - score2) > 30:
+                conflicts.append(f"{agent1} vs {agent2}")
+            
     if len(conflicts) > 0 :
         if(confidence) > 70 :
             confidence = 70 
@@ -162,19 +178,12 @@ def validation_agent(state: AgentState) -> AgentState:
             changed_agents.append(agent)
 
     return {
-    **state,
     "confidence": round(confidence, 2),
     "decision": decision,
     "alert_type": alert_type,
     "changed_agents": changed_agents, 
-    
     "reasoning": reasoning
             }
-
-
-# if __name__ == "__main__":
-#     result  = validation_agent({"ticker": "AAPL"})
-#     print(result)
 
 if __name__ == "__main__":
     result = validation_agent({
@@ -184,4 +193,4 @@ if __name__ == "__main__":
         "sentiment_score": 65,
         "risk_score": 65
     })
-    print(result)
+    logger.info(result)

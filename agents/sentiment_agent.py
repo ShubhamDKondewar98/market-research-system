@@ -9,8 +9,15 @@ from graph.state import AgentState
 import json
 import datetime
 load_dotenv()
-import json
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+from pydantic import BaseModel,Field,ValidationError
 
+
+class SentimentScoreOutput(BaseModel):
+    sentiment_score: float = Field(ge=0, le=100)
+    sentiment_summary: str
 
 def sentimentOfCompany(ticker:str)->list:
     try:
@@ -28,7 +35,7 @@ def sentimentOfCompany(ticker:str)->list:
         for data in sentiment_data["data"][:10]
         ]
     except Exception as e:
-        print(f"Finnhub API error for {ticker}: {e}")
+        logger.warning(f"Finnhub API error for {ticker}: {e}")
         return None
     
 
@@ -38,18 +45,18 @@ def get_analyst_data(ticker:str)-> dict:
         info = stock.info 
         return {
         "current_price": info["currentPrice"],           
-        "target_mean_price": info["targetMeanPrice"],    
-        "target_high_price": info["targetHighPrice"],    
-        "target_low_price": info["targetLowPrice"],      
-        "recommendation": info["recommendationKey"],     
-        "analyst_count": info["numberOfAnalystOpinions"],
-        "recommendation_mean": info["recommendationMean"],
-        "earnings_growth": info["earningsGrowth"],       
-        "revenue_growth": info["revenueGrowth"],         
-        "profit_margins": info["profitMargins"],         
+        "target_mean_price": info.get("targetMeanPrice","no analyst coverage"),    
+        "target_high_price": info.get("targetHighPrice","no analyst coverage"),    
+        "target_low_price": info.get("targetLowPrice","no analyst coverage"),      
+        "recommendation": info.get("recommendationKey","no analyst coverage"),     
+        "analyst_count": info.get("numberOfAnalystOpinions","no analyst coverage"),
+        "recommendation_mean": info.get("recommendationMean","no analyst coverage"),
+        "earnings_growth": info.get("earningsGrowth","financial data unavailable"),       
+        "revenue_growth": info.get("revenueGrowth","financial data unavailable"),         
+        "profit_margins": info.get("profitMargins","financial data unavailable"),         
         } 
     except Exception as e:
-        print(f"yfinance API error for {ticker}: {e}")
+        logger.warning(f"yfinance API error for {ticker}: {e}")
         return None
 
 
@@ -129,6 +136,7 @@ No extra text, no markdown, no explanation outside the JSON:
 
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
+structured_llm = llm.with_structured_output(SentimentScoreOutput)
 
 
 def sentiment_agent(state: AgentState) -> AgentState:
@@ -137,10 +145,9 @@ def sentiment_agent(state: AgentState) -> AgentState:
     # NEW: check if this agent should run fresh or use cache
     run_agents = state.get("run_agents") 
 
-    # If run_agents is None or "technical" is not in the list, use cache
+    # If run_agents is None or "sentiment" is not in the list, use cache
     if run_agents is not None and "sentiment" not in run_agents:
         return {
-            **state,
             "sentiment_score": state.get("cached_sentiment_score"),
             "sentiment_summary": state.get("cached_sentiment_summary")
         }
@@ -148,53 +155,50 @@ def sentiment_agent(state: AgentState) -> AgentState:
     C_sentiments = sentimentOfCompany(ticker) 
     if C_sentiments is None:
         return {
-           # **state,
-            "sentiment_score": None,
-            "sentiment_summary": "sentiment data unavailable — Finnhub API error"
+            "sentiment_score": state.get("cached_sentiment_score"),
+            "sentiment_summary": state.get("cached_sentiment_summary")
         }
     
     analyst_data = get_analyst_data(ticker) 
     if analyst_data is None:
         return {
-           # **state,
-            "sentiment_score": None,
-            "sentiment_summary": "sentiment data unavailable — Finnhub API error"
+            "sentiment_score": state.get("cached_sentiment_score"),
+            "sentiment_summary": state.get("cached_sentiment_summary")
         }
     
     prompt = ChatPromptTemplate.from_template(system_prompt)
-    chain = prompt | llm 
+    chain = prompt | structured_llm 
 
-    response = chain.invoke({
-        "ticker": ticker,
-        "insider_sentiment":json.dumps(C_sentiments,indent=2),
-        "analyst_data":json.dumps(analyst_data, indent=2)
+    MAX_RETRIES = 2    
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = chain.invoke({
+                "ticker": ticker,
+                "insider_sentiment":json.dumps(C_sentiments),
+                "analyst_data":json.dumps(analyst_data)
+            })
 
-    })
+            return {
+                "sentiment_score": response.sentiment_score,
+                "sentiment_summary": response.sentiment_summary
+            }
 
-    raw = response.content.strip()
-
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]  # get content between backticks
-        if raw.startswith("json"):
-            raw = raw[4:]  # remove the word "json"
-
-    result = json.loads(raw.strip())
-
+        except ValidationError as e:
+            logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+        except Exception as e:
+            logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+    logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached sentiment score")
     return {
-        #**state,
-        "sentiment_score": result["sentiment_score"],
-        "sentiment_summary": result["sentiment_summary"]
+        "sentiment_score": state.get("cached_sentiment_score"),
+        "sentiment_summary": state.get("cached_sentiment_summary")
     }
 
 
-# if __name__ == "__main__":
-#     result = sentiment_agent({"ticker": "AAPL"})
-#     print(result)
 
 if __name__ == "__main__":
     # Test 1: fresh run (no run_agents)
     result1 = sentiment_agent({"ticker": "AAPL"})
-    print("FRESH RUN:", result1)
+    logger.info(f"FRESH RUN: {result1}")
 
     # Test 2: cache-skip path (sentiment NOT in run_agents)
     result2 = sentiment_agent({
@@ -203,5 +207,5 @@ if __name__ == "__main__":
         "cached_sentiment_score": 70,
         "cached_sentiment_summary": "Cached: moderately bullish from earlier run"
     })
-    print("CACHED RUN:", result2)
+    logger.info(f"CACHED RUN: {result2}")
 

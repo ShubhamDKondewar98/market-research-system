@@ -8,13 +8,22 @@ import pandas_ta as ta
 from graph.state import AgentState
 import json
 load_dotenv()
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+from pydantic import BaseModel, Field, ValidationError
+
+
+class TechnicalScoreOutput(BaseModel):
+    technical_score: float = Field(ge=0, le=100)
+    technical_summary: str
 
 
 def get_quote(ticker:str)->dict:
     #getting stock prize  details from  finnhub
     try:
         finnhub_client = finnhub.Client(api_key=os.environ['FINNHUB_API_KEY'])
-        #print(finnhub_client.quote(ticker)) 
+        
         quote_data = finnhub_client.quote(ticker) 
         return {
             "current_price": quote_data['c'],
@@ -26,7 +35,7 @@ def get_quote(ticker:str)->dict:
             "previous_close": quote_data['pc']
         }
     except Exception as e:
-        print(f"Finnhub API error for {ticker}: {e}")
+        logger.warning(f"Finnhub API error for {ticker}: {e}")
         return None
 
 def get_indicators(ticker:str , interval: str = "1d")->dict:
@@ -39,7 +48,7 @@ def get_indicators(ticker:str , interval: str = "1d")->dict:
             "1d": "3mo"
         }
         period = period_map.get(interval, "3mo")
-        #df = stock.history(period="3mo") 
+       
         df = stock.history(period=period, interval=interval)
         df['RSI'] = ta.rsi(df['Close'], length=14)
         df['MACD'] = ta.macd(df['Close'])['MACD_12_26_9']
@@ -52,7 +61,7 @@ def get_indicators(ticker:str , interval: str = "1d")->dict:
         "ema50": round(float(df['EMA50'].iloc[-1]), 2)
              }
     except Exception as e:
-        print(f"yahoo finnace API error for {ticker}: {e}")
+        logger.warning(f"yahoo finance API error for {ticker}: {e}")
         return None
 
 
@@ -117,81 +126,80 @@ No extra text, no markdown, no explanation outside the JSON:
 
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
+structured_llm = llm.with_structured_output(TechnicalScoreOutput)
 
 def technical_agent(state: AgentState) -> AgentState:
     ticker = state["ticker"]  
 
-
     # NEW: check if this agent should run fresh or use cache
     run_agents = state.get("run_agents") 
-
 
      # If run_agents is None or "technical" is not in the list, use cache
     if run_agents is not None and "technical" not in run_agents:
         return {
-           # **state,
             "technical_score": state.get("cached_technical_score"),
             "technical_summary": state.get("cached_technical_summary")
         }
     
-
     # Step 1 - fetch data
     quote = get_quote(ticker) 
     if quote is None:
         return {   
-           # **state,
-            "technical_score": None,
-            "technical_summary": "Technical data unavailable — Finnhub API error" 
+            "technical_score": state.get("cached_technical_score"),
+            "technical_summary": state.get("cached_technical_summary") 
         }  
     interval = state.get("interval", "1d")  # default to daily
     indicators = get_indicators(ticker,interval)
     if indicators is None:
         return {
-           # **state,
-            "technical_score": None,
-            "technical_summary": "Technical data unavailable — yfinance  API error"
+            "technical_score": state.get("cached_technical_score"),
+            "technical_summary": state.get("cached_technical_summary")
         }
 
     prompt = ChatPromptTemplate.from_template(system_prompt)
-    chain = prompt | llm
-    response = chain.invoke({ 
-        "ticker": ticker,
-        "current_price":quote["current_price"],
-        "change": quote["change"],
-        "percent_change": quote["percent_change"],
-        "high":quote["high"],
-        "low": quote["low"],
-        "previous_close": quote["previous_close"],
-        "rsi": indicators["rsi"],
-        "macd": indicators["macd"],
-        "ema20": indicators["ema20"],
-        "ema50": indicators["ema50"]
-    }) 
+    chain = prompt | structured_llm 
 
-    raw = response.content.strip() 
-
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]  # get content between backticks
-        if raw.startswith("json"):
-            raw = raw[4:]  # remove the word "json"
-
-    result = json.loads(raw.strip())
+    MAX_RETRIES = 2
     
+    for attempt in range(MAX_RETRIES):
+
+        try:
+            response = chain.invoke({ 
+                "ticker": ticker,
+                "current_price":quote["current_price"],
+                "change": quote["change"],
+                "percent_change": quote["percent_change"],
+                "high":quote["high"],
+                "low": quote["low"],
+                "previous_close": quote["previous_close"],
+                "rsi": indicators["rsi"],
+                "macd": indicators["macd"],
+                "ema20": indicators["ema20"],
+                "ema50": indicators["ema50"]
+            }) 
+            
+            return {
+                "technical_score": response.technical_score,
+                "technical_summary": response.technical_summary
+            }
+
+        except ValidationError as e:
+            logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+
+        except Exception as e:
+            logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+    logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached technical score")
+
     return {
-        #**state,
-        "technical_score": result["technical_score"],
-        "technical_summary": result["technical_summary"]
-    }
+            "technical_score": state.get("cached_technical_score"),
+            "technical_summary": state.get("cached_technical_summary")
+        }  
 
-
-# if __name__ == "__main__":
-#     result = technical_agent({"ticker": "AAPL"}) 
-#     print(result)
 
 if __name__ == "__main__":
     # Test 1: fresh run (no run_agents)
     result1 = technical_agent({"ticker": "AAPL"})
-    print("FRESH RUN:", result1)
+    logger.info(f"FRESH RUN: {result1}")
 
     # Test 2: cache-skip path (technical NOT in run_agents)
     result2 = technical_agent({
@@ -200,5 +208,11 @@ if __name__ == "__main__":
         "cached_technical_score": 65,
         "cached_technical_summary": "Cached: bullish trend from earlier run"
     })
-    print("CACHED RUN:", result2)
+    logger.info(f"CACHED RUN: {result2}")
+
+
+
+
+
+
 
