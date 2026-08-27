@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
 import time
 import logging
 logger = logging.getLogger(__name__)
@@ -27,4 +28,4 @@ def utc_now():
     return the current time as timezone-aware UTC datetime for consistent freshness 
     comparison against datbase timestamp  
     """
-    return  datetime.now(datetime.UTC)
+    return  datetime.now(timezone.utc)

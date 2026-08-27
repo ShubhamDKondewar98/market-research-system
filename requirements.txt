@@ -14,5 +14,4 @@ psycopg2-binary
 finnhub-python
 yfinance
 pandas_ta
-playwright
 grandalf

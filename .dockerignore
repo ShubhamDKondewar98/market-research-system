@@ -1,0 +1,7 @@
+market_venv/
+__pycache__/
+.git/
+.env
+*.pyc
+graph_visualization.png
+README.md
