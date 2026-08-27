@@ -3,9 +3,12 @@ import psycopg2.pool
 import os 
 from dotenv import load_dotenv
 load_dotenv()
-from datetime import datetime, timedelta
 import json 
 from datetime import datetime, timedelta, timezone
+from utils import utc_now
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 # Create connection pool once at module level
@@ -20,9 +23,6 @@ def get_connection():
 
 def release_connection(conn):
     connection_pool.putconn(conn)
-
-# def get_connection():
-#     return psycopg2.connect(os.environ['DATABASE_URL'])    
 
 
 def last_known_scores(ticker: str) -> dict | None:
@@ -39,7 +39,7 @@ def last_known_scores(ticker: str) -> dict | None:
 
     except Exception as e:
         conn.rollback()
-        print(f"Error fetching last known scores for {ticker}: {e}")
+        logger.warning(f"Error fetching last known scores for {ticker}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -78,7 +78,7 @@ def save_agent_scores(ticker: str,technical_score: float,news_score: float,
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Error saving agent scores for {ticker}: {e}")
+        logger.warning(f"Error saving agent scores for {ticker}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -97,7 +97,8 @@ def get_previous_confidence(ticker: str) -> float | None:
             )  
         row = cursor.fetchone()   
     except Exception as e:
-        print(f"Error fetching previous confidence for {ticker}: {e}")
+        conn.rollback()
+        logger.warning(f"Error fetching previous confidence for {ticker}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -119,7 +120,7 @@ def save_confidence(ticker: str, confidence: float, decision: str, delta: float)
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Error saving confidence for {ticker}: {e}")
+        logger.warning(f"Error saving confidence for {ticker}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -136,7 +137,7 @@ def save_alert(ticker: str, alert_type: str, message: str, confidence: float) ->
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Error saving alert for {ticker}: {e}")
+        logger.warning(f"Error saving alert for {ticker}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -153,7 +154,7 @@ def save_execution_log(ticker: str, run_result: str, run_time, error_msg: str = 
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Error saving execution log for {ticker}: {e}")
+        logger.warning(f"Error saving execution log for {ticker}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -170,7 +171,8 @@ def get_watchlist_by_tier(tier: str) -> list:
             )  
         rows = cursor.fetchall()   
     except Exception as e:
-        print(f"Error fetching watchlist for tier {tier}: {e}")
+        conn.rollback()
+        logger.warning(f"Error fetching watchlist for tier {tier}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -194,7 +196,7 @@ def update_tier(ticker: str, tier: str) -> None:
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Error updating  tier {tier}: {e}")
+        logger.warning(f"Error updating  tier {tier}: {e}")
     finally:
         cursor.close()
         release_connection(conn)
@@ -211,7 +213,8 @@ def get_confidence_history(ticker: str, limit: int = 3) -> list:
         )
         rows = cursor.fetchall()  
     except Exception as e:
-        print(f"Error in getting confidence history {ticker}: {e}")
+        conn.rollback()
+        logger.warning(f"Error in getting confidence history {ticker}: {e}")
     finally:
         cursor.close()
         release_connection(conn) 
@@ -233,14 +236,15 @@ def get_cached_general_news() -> list | None:
         )
         row = cursor.fetchone()  
     except Exception as e:
-        print(f"Error in getting cached general news : {e}")
+        conn.rollback()
+        logger.warning(f"Error in getting cached general news : {e}")
     finally:
         cursor.close()
         release_connection(conn)  
     if row is None:
         return None  
     fetched_at = row[1]
-    age = datetime.now(timezone.utc) - fetched_at.replace(tzinfo=timezone.utc)
+    age = utc_now() - fetched_at.replace(tzinfo=timezone.utc)
     if age < timedelta(hours=1):
         return json.loads(row[0])  
     else:
@@ -250,7 +254,6 @@ def get_cached_general_news() -> list | None:
 def save_general_news_cache(news_data: list) -> None:
     conn = get_connection()  
     cursor = conn.cursor() 
-
     try:
         cursor.execute( 
          "DELETE FROM general_news_cache " 
@@ -260,12 +263,25 @@ def save_general_news_cache(news_data: list) -> None:
          (json.dumps(news_data),) 
         )
         conn.commit()
-
     except Exception as e:
         conn.rollback()
-        print(f"Error in saving general news : {e}")
+        logger.warning(f"Error in saving general news : {e}")
     finally:
         cursor.close()
         release_connection(conn) 
 
 
+def get_current_tier(ticker: str) -> str:
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = None
+    try:
+        cursor.execute("SELECT tier FROM watchlist WHERE ticker = %s", (ticker,))
+        row = cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        logger.warning(f"Error fetching current tier for {ticker}: {e}")
+    finally:
+        cursor.close()
+        release_connection(conn)
+    return row[0] if row else "WATCH"
