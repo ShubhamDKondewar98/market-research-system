@@ -1,34 +1,3 @@
-# import sys
-# sys.path.insert(0, '.')
-# from graph.pipeline import graph
-
-# if __name__ == "__main__":
-#     result = graph.invoke({
-#         "ticker": "AAPL",
-#         "interval": "1d"
-#     })
-
-
-#     # Visualize the graph
-#     from IPython.display import Image
-#     graph_image = graph.get_graph().draw_mermaid_png()
-#     with open("graph_visualization.png", "wb") as f:
-#         f.write(graph_image)
-#     print("Graph saved as graph_visualization.png")
-    
-#     print("\n=== MARKET ANALYSIS RESULT ===")
-#     print(f"Ticker:     {result['ticker']}")
-#     print(f"Decision:   {result['decision']}")
-#     print(f"Confidence: {result['confidence']}%")
-#     print(f"Alert Type: {result['alert_type']}")
-#     print(f"Reasoning:  {result['reasoning']}")
-#     print("\nAgent Scores:")
-#     print(f"  Technical:  {result['technical_score']}")
-#     print(f"  News:       {result['news_score']}")
-#     print(f"  Sentiment:  {result['sentiment_score']}")
-#     print(f"  Risk:       {result['risk_score']}")
-
-
 import sys
 sys.path.insert(0, '.')
 from graph.pipeline import graph
@@ -36,11 +5,14 @@ from database.queries import (
     last_known_scores, save_agent_scores, 
     get_previous_confidence, save_confidence,
     save_alert, save_execution_log,
-    update_tier, get_confidence_history
+    update_tier, get_confidence_history , get_current_tier
 )
 from datetime import datetime, timedelta
 import time
-
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+from utils import utc_now
 
 # Freshness rules in minutes
 FRESHNESS_RULES = {
@@ -55,7 +27,7 @@ def evaluate_tier(ticker: str, current_tier: str) -> str:
     history = get_confidence_history(ticker, limit=3)
     
     if len(history) < 2:
-        return current_tier  # not enough data to make a decision
+        return current_tier  
     
     avg = sum(history) / len(history)
     trend = history[0] - history[-1]  # positive = rising, negative = falling
@@ -79,7 +51,7 @@ def run_pipeline(ticker: str, interval: str = "1d"):
     
     # Step 2 — decide which agents need fresh run
     run_agents = []
-    now = datetime.now()
+    now = utc_now()
     
     if last_scores is None:
         # brand new ticker — run all agents fresh
@@ -115,18 +87,18 @@ def run_pipeline(ticker: str, interval: str = "1d"):
         payload["previous_risk_score"] = last_scores.get("risk_score")
     
     # Step 4 — call LangGraph pipeline
-    print(f"\nRunning pipeline for {ticker}")
-    print(f"Fresh agents: {run_agents}")
+    logger.info(f"\nRunning pipeline for {ticker}")
+    logger.info(f"Fresh agents: {run_agents}")
     
     result = graph.invoke(payload)
     
     # Step 5 — calculate delta
     previous_confidence = get_previous_confidence(ticker)
     current_confidence = result["confidence"]
-    delta = round(current_confidence - previous_confidence, 2) if previous_confidence else 0.0
+    delta = round(current_confidence - previous_confidence, 2) if previous_confidence is not None else 0.0
     
     # Step 6 — write results to DB
-    now = datetime.now()
+    now = utc_now()
     
     # Build timestamps — fresh agents get NOW(), cached agents carry forward old timestamp
     timestamps = {}
@@ -173,30 +145,34 @@ def run_pipeline(ticker: str, interval: str = "1d"):
 
 
     # Evaluate and update tier
-    new_tier = evaluate_tier(ticker, "WATCH")
+    current_tier = get_current_tier(ticker)
+    new_tier = evaluate_tier(ticker, current_tier)
     update_tier(ticker, new_tier)
-    print(f"Tier: {new_tier}")
+    logger.info(f"Tier: {new_tier}")
     
-    # Print results
-    print("\n=== MARKET ANALYSIS RESULT ===")
-    print(f"Ticker:     {result['ticker']}")
-    print(f"Decision:   {result['decision']}")
-    print(f"Confidence: {result['confidence']}%")
-    print(f"Delta:      {delta}")
-    print(f"Alert Type: {result['alert_type']}")
-    print(f"Fresh agents ran: {run_agents}")
-    print(f"\nAgent Scores:")
-    print(f"  Technical:  {result['technical_score']}")
-    print(f"  News:       {result['news_score']}")
-    print(f"  Sentiment:  {result['sentiment_score']}")
-    print(f"  Risk:       {result['risk_score']}")
-    print(f"\nReasoning: {result['reasoning']}")
-    print(f"Changed Agents: {result['changed_agents']}")
+    # logger.info results
+    logger.info("\n=== MARKET ANALYSIS RESULT ===")
+    logger.info(f"Ticker:     {result['ticker']}")
+    logger.info(f"Decision:   {result['decision']}")
+    logger.info(f"Confidence: {result['confidence']}%")
+    logger.info(f"Delta:      {delta}")
+    logger.info(f"Alert Type: {result['alert_type']}")
+    logger.info(f"Fresh agents ran: {run_agents}")
+    logger.info(f"\nAgent Scores:")
+    logger.info(f"  Technical:  {result['technical_score']}")
+    logger.info(f"  News:       {result['news_score']}")
+    logger.info(f"  Sentiment:  {result['sentiment_score']}")
+    logger.info(f"  Risk:       {result['risk_score']}")
+    logger.info(f"\nReasoning: {result['reasoning']}")
+    logger.info(f"Changed Agents: {result['changed_agents']}")
 
 if __name__ == "__main__":
     #run_pipeline("AAPL", "1d")
 
     tickers = ["AAPL", "NVDA", "TSLA", "MSFT" , "JPM"]
     for ticker in tickers:
-        print(f"\n{'='*50}")
+        logger.info(f"\n{'='*50}")
         run_pipeline(ticker, "1d")
+
+
+

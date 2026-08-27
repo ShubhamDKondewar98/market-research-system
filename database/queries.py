@@ -271,3 +271,17 @@ def save_general_news_cache(news_data: list) -> None:
         release_connection(conn) 
 
 
+def get_current_tier(ticker: str) -> str:
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = None
+    try:
+        cursor.execute("SELECT tier FROM watchlist WHERE ticker = %s", (ticker,))
+        row = cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        logger.warning(f"Error fetching current tier for {ticker}: {e}")
+    finally:
+        cursor.close()
+        release_connection(conn)
+    return row[0] if row else "WATCH"
