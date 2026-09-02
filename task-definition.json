@@ -1,0 +1,59 @@
+{
+    "containerDefinitions": [
+        {
+            "name": "market-research-api-container",
+            "image": "IMAGE_PLACEHOLDER",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 8000,
+                    "hostPort": 8000,
+                    "protocol": "tcp",
+                    "name": "market-research-api-container-8000-tcp",
+                    "appProtocol": "http"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                { "name": "FINNHUB_API_KEY", "value": "FINNHUB_API_KEY_PLACEHOLDER" },
+                { "name": "LANGSMITH_TRACING", "value": "true" },
+                { "name": "DATABASE_URL", "value": "DATABASE_URL_PLACEHOLDER" },
+                { "name": "LANGSMITH_ENDPOINT", "value": "https://api.smith.langchain.com" },
+                { "name": "LANGSMITH_PROJECT", "value": "market-research-system" },
+                { "name": "API_SECRET_KEY", "value": "API_SECRET_KEY_PLACEHOLDER" },
+                { "name": "LANGSMITH_API_KEY", "value": "LANGSMITH_API_KEY_PLACEHOLDER" },
+                { "name": "OPENAI_API_KEY", "value": "OPENAI_API_KEY_PLACEHOLDER" },
+                { "name": "ANTHROPIC_API_KEY", "value": "ANTHROPIC_API_KEY_PLACEHOLDER" }
+            ],
+            "environmentFiles": [],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "ulimits": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/market-research-api-task",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "ap-south-1",
+                    "awslogs-stream-prefix": "ecs"
+                },
+                "secretOptions": []
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "market-research-api-task",
+    "executionRoleArn": "arn:aws:iam::988563522752:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "volumes": [],
+    "placementConstraints": [],
+    "runtimePlatform": {
+        "cpuArchitecture": "X86_64",
+        "operatingSystemFamily": "LINUX"
+    },
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512"
+}

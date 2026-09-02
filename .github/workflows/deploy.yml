@@ -1,0 +1,62 @@
+name: Build and Deploy to ECS
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: market-research-api
+  ECS_SERVICE: market-research-api-service
+  ECS_CLUSTER: market-research-cluster
+  ECS_TASK_DEFINITION: task-definition.json
+  CONTAINER_NAME: market-research-api-container
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Fill in task definition with real values
+        id: task-def
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|${{ steps.build-image.outputs.image }}|g" $ECS_TASK_DEFINITION
+          sed -i "s|OPENAI_API_KEY_PLACEHOLDER|${{ secrets.OPENAI_API_KEY }}|g" $ECS_TASK_DEFINITION
+          sed -i "s|ANTHROPIC_API_KEY_PLACEHOLDER|${{ secrets.ANTHROPIC_API_KEY }}|g" $ECS_TASK_DEFINITION
+          sed -i "s|FINNHUB_API_KEY_PLACEHOLDER|${{ secrets.FINNHUB_API_KEY }}|g" $ECS_TASK_DEFINITION
+          sed -i "s|DATABASE_URL_PLACEHOLDER|${{ secrets.DATABASE_URL }}|g" $ECS_TASK_DEFINITION
+          sed -i "s|API_SECRET_KEY_PLACEHOLDER|${{ secrets.API_SECRET_KEY }}|g" $ECS_TASK_DEFINITION
+          sed -i "s|LANGSMITH_API_KEY_PLACEHOLDER|${{ secrets.LANGSMITH_API_KEY }}|g" $ECS_TASK_DEFINITION
+
+      - name: Register new task definition revision
+        id: register-task-def
+        run: |
+          aws ecs register-task-definition --cli-input-json file://$ECS_TASK_DEFINITION
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --task-definition $ECS_TASK_DEFINITION --force-new-deployment
