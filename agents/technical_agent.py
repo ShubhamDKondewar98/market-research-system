@@ -156,46 +156,112 @@ def technical_agent(state: AgentState) -> AgentState:
             "technical_summary": state.get("cached_technical_summary")
         }
 
+    # prompt = ChatPromptTemplate.from_template(system_prompt)
+    # chain = prompt | structured_llm 
+
+    # MAX_RETRIES = 2
+    
+    # for attempt in range(MAX_RETRIES):
+
+    #     try:
+    #         response = chain.invoke({ 
+    #             "ticker": ticker,
+    #             "current_price":quote["current_price"],
+    #             "change": quote["change"],
+    #             "percent_change": quote["percent_change"],
+    #             "high":quote["high"],
+    #             "low": quote["low"],
+    #             "previous_close": quote["previous_close"],
+    #             "rsi": indicators["rsi"],
+    #             "macd": indicators["macd"],
+    #             "ema20": indicators["ema20"],
+    #             "ema50": indicators["ema50"]
+    #         }) 
+            
+    #         return {
+    #             "technical_score": response.technical_score,
+    #             "technical_summary": response.technical_summary
+    #         }
+
+    #     except ValidationError as e:
+    #         logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+
+    #     except Exception as e:
+    #         logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+    # logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached technical score")
+
+
+    return score_technical_data(ticker, quote, indicators, state.get("cached_technical_score"))
+    
+    # return {
+    #         "technical_score": state.get("cached_technical_score"),
+    #         "technical_summary": state.get("cached_technical_summary")
+    #     }  
+
+
+#################################
+
+####  LLM evaluation 
+
+fake_quote = {
+    "current_price": 185,
+    "change": 5,  # 185 - 180
+    "percent_change": 2.8,
+    "high": 186,
+    "low": 179,
+    "previous_close": 180
+}
+fake_indicators = {
+    "rsi": 25,
+    "macd": 2.5,
+    "ema20": 180,
+    "ema50": 170
+}
+
+def score_technical_data(ticker: str, quote: dict, indicators: dict, cached_fallback_score=None) -> dict:
+    """
+    Takes already-fetched quote and indicator data and produces a technical score via LLM.
+    Extracted from technical_agent() so it can be tested independently (e.g. with synthetic
+    indicator values for evaluation) without needing real Finnhub/yfinance data.
+    """
     prompt = ChatPromptTemplate.from_template(system_prompt)
-    chain = prompt | structured_llm 
+    chain = prompt | structured_llm
 
     MAX_RETRIES = 2
-    
     for attempt in range(MAX_RETRIES):
-
         try:
-            response = chain.invoke({ 
+            response = chain.invoke({
                 "ticker": ticker,
-                "current_price":quote["current_price"],
+                "current_price": quote["current_price"],
                 "change": quote["change"],
                 "percent_change": quote["percent_change"],
-                "high":quote["high"],
+                "high": quote["high"],
                 "low": quote["low"],
                 "previous_close": quote["previous_close"],
                 "rsi": indicators["rsi"],
                 "macd": indicators["macd"],
                 "ema20": indicators["ema20"],
                 "ema50": indicators["ema50"]
-            }) 
-            
+            })
             return {
                 "technical_score": response.technical_score,
                 "technical_summary": response.technical_summary
             }
-
         except ValidationError as e:
             logger.warning(f"Schema validation failed for {ticker} (attempt {attempt+1}/{MAX_RETRIES}): {e}")
-
         except Exception as e:
             logger.warning(f"LLM call failed for {ticker} (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+
     logger.warning(f"All {MAX_RETRIES} attempts failed for {ticker} — falling back to cached technical score")
-
     return {
-            "technical_score": state.get("cached_technical_score"),
-            "technical_summary": state.get("cached_technical_summary")
-        }  
+        "technical_score": cached_fallback_score,
+        "technical_summary": None
+    }
+
+#####################################################
 
 
+ 
 if __name__ == "__main__":
     # Test 1: fresh run (no run_agents)
     result1 = technical_agent({"ticker": "AAPL"})
@@ -209,6 +275,11 @@ if __name__ == "__main__":
         "cached_technical_summary": "Cached: bullish trend from earlier run"
     })
     logger.info(f"CACHED RUN: {result2}")
+
+
+    # Test 3: LLM evaluation — score using FAKE, synthetic indicator data
+    result3 = score_technical_data("TEST", fake_quote, fake_indicators)
+    logger.info(f"FAKE DATA (evaluation test): {result3}")
 
 
 
