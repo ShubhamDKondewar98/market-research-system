@@ -61,3 +61,5 @@ jobs:
       - name: Deploy to ECS
         run: |
           aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --task-definition ${{ steps.register-task-def.outputs.task_def_arn }} --force-new-deployment
+
+          
